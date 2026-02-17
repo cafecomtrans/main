@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16x16.png">
-  <link rel="manifest" href="images/site.webmanifest">  
-
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Café com Trans - Notícias</title>
-  
+
+  <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16x16.png">
+  <link rel="manifest" href="images/site.webmanifest">
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
     body { display: flex; min-height: 100vh; background-color: #f8f9ff; color: #333; }
@@ -42,7 +42,7 @@
     }
     .card:hover { transform: translateY(-5px); }
     .card h3 { margin: 0 0 10px; font-size: 18px; color: #333; }
-    .card p { font-size: 14px; color: #555; flex-grow: 1; margin-bottom: 15px; }
+    .card p { font-size: 14px; color: #555; flex-grow: 1; margin-bottom: 15px; line-height: 1.4; }
     .card small { display: block; margin-bottom: 10px; color: #999; font-size: 12px; }
     .card a {
       align-self: flex-start;
@@ -54,7 +54,7 @@
       font-size: 14px;
     }
     
-    #loading { font-style: italic; color: #666; }
+    #loading { font-style: italic; color: #666; grid-column: 1/-1; }
   </style>
 </head>
 <body>
@@ -85,35 +85,28 @@
 
 <script>
 async function carregarRSS() {
-  const urlRSS = "https://cafecomtrans.wordpress.com/feed/";
+  // RSS2JSON é mais estável para WordPress do que o AllOrigins
+  const feedUrl = "https://cafecomtrans.wordpress.com/feed/";
+  const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}`;
   const container = document.getElementById("rss-feed");
   
   try {
-    // Usando um proxy CORS alternativo mais estável (RSS2JSON) ou mantendo o AllOrigins
-    const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(urlRSS)}`);
-    
-    if (!response.ok) throw new Error('Erro na requisição');
-    
+    const response = await fetch(apiUrl);
     const data = await response.json();
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(data.contents, "text/xml");
-    
-    // Verifica se houve erro no parse do XML
-    if (xml.querySelector("parsererror")) throw new Error('Erro ao processar feed');
 
-    const items = xml.querySelectorAll("item");
+    if (data.status !== 'ok') throw new Error('Erro ao carregar o feed');
+
     let html = "";
 
-    items.forEach((item, index) => {
+    data.items.forEach((item, index) => {
       if (index < 6) { 
-        const titulo = item.querySelector("title")?.textContent || "Sem título";
-        const link = item.querySelector("link")?.textContent || "#";
-        const dataPubRaw = item.querySelector("pubDate")?.textContent;
-        const dataPub = dataPubRaw ? new Date(dataPubRaw).toLocaleDateString("pt-BR") : "";
+        const titulo = item.title;
+        const link = item.link;
+        // Formata data para o padrão brasileiro
+        const dataPub = new Date(item.pubDate).toLocaleDateString("pt-BR");
         
-        // Limpando a descrição de tags HTML que o WordPress manda
-        let descricao = item.querySelector("description")?.textContent || "";
-        descricao = descricao.replace(/<[^>]*>/g, '').substring(0, 120);
+        // Remove tags HTML da descrição e limita caracteres
+        let descricao = item.description.replace(/<[^>]*>/g, '').substring(0, 140);
 
         html += `
           <div class="card">
@@ -126,11 +119,17 @@ async function carregarRSS() {
       }
     });
 
-    container.innerHTML = html || "<p>Nenhuma notícia encontrada.</p>";
+    container.innerHTML = html;
 
   } catch (e) {
-    console.error(e);
-    container.innerHTML = "<p>Não foi possível carregar as notícias automaticamente no momento. <br><br> <a href='https://cafecomtrans.wordpress.com' target='_blank'>Clique aqui para visitar nosso blog diretamente.</a></p>";
+    console.error("Erro no RSS:", e);
+    container.innerHTML = `
+      <div style="grid-column: 1/-1; padding: 20px; background: #fff1f1; border-radius: 8px; border: 1px solid #ffcccc;">
+        <p>⚠️ <strong>Não foi possível carregar as notícias agora.</strong></p>
+        <p>Visite nosso blog diretamente para as novidades:</p>
+        <a href="https://cafecomtrans.wordpress.com" target="_blank" style="margin-top:10px; display:inline-block; background:#6c63ff; color:white; padding:10px 20px; border-radius:5px; text-decoration:none;">Ir para o Blog</a>
+      </div>
+    `;
   }
 }
 
